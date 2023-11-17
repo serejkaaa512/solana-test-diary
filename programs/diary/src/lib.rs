@@ -37,15 +37,9 @@ mod diary {
         ctx.accounts.diary_account.bump = *ctx.bumps.get("diary_account").unwrap();
         Ok(())
     }
-    pub fn add_record(ctx: Context<AddRecord>, _id: u32, text: String) -> Result<()> {
-        msg!(
-            "record account is_writable = {}",
-            ctx.accounts.records_account.is_writable
-        );
-        msg!(
-            "record account is_signer = {}",
-            ctx.accounts.records_account.is_signer
-        );
+    pub fn add_record(ctx: Context<AddRecord>, _id: u32, text: String, offset: u32) -> Result<()> {
+        let offset = offset as usize;
+        let new_bytes_len_from_offset = offset + text.len();
         if ctx
             .accounts
             .diary_account
@@ -55,7 +49,21 @@ mod diary {
             let mut record_data =
                 Record::unpack_from_slice(&*ctx.accounts.records_account.data.borrow())
                     .expect("deposit token unpack");
-            record_data.text += &*text;
+            let mut bytes = record_data.text.into_bytes();
+            let new_bytes = if bytes.len() < new_bytes_len_from_offset {
+                let mut new_bytes = vec![0; new_bytes_len_from_offset];
+                new_bytes[..bytes.len()].copy_from_slice(&bytes);
+                new_bytes[offset..].copy_from_slice(&text.as_bytes());
+                new_bytes
+            } else {
+                bytes[offset..new_bytes_len_from_offset].copy_from_slice(&text.as_bytes());
+                bytes
+            };
+
+            record_data = Record {
+                text: String::from_utf8(new_bytes).unwrap(),
+            };
+
             Record::pack(
                 record_data,
                 &mut ctx.accounts.records_account.data.borrow_mut(),
@@ -65,14 +73,18 @@ mod diary {
                 .diary_account
                 .records
                 .push(ctx.accounts.records_account.key());
-            msg!("diary_account added record");
-            let record_account_data = Record { text };
+
+            let mut new_bytes = vec![0; new_bytes_len_from_offset];
+            new_bytes[offset..].copy_from_slice(&text.as_bytes());
+
+            let record_account_data = Record {
+                text: String::from_utf8(new_bytes).unwrap(),
+            };
 
             Record::pack(
                 record_account_data,
                 &mut ctx.accounts.records_account.data.borrow_mut(),
             )?;
-            msg!("record account saved");
         }
         Ok(())
     }
@@ -172,5 +184,5 @@ pub struct RemoveRecord<'info> {
 
 #[error_code]
 pub enum CustomError {
-    NameIsTooLong
+    NameIsTooLong,
 }

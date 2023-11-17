@@ -75,18 +75,52 @@ describe("diary-test", () => {
     await provider.sendAndConfirm(transferSolTrns, [payer, recordAcc]);
 
     await program.methods
-      .addRecord(diaryId, "dasdasdasdas")
+      .addRecord(diaryId, "123", 12)
       .accounts({
         authority: payer.publicKey,
         diaryAccount: diaryPda,
         recordsAccount: recordAcc.publicKey,
       })
       .signers([payer, recordAcc])
-      .rpc();
+      .rpc({
+        skipPreflight: true,
+      });
+
+    const rec3 = await provider.connection.getAccountInfo(recordAcc.publicKey);
+    const record3 = RECORD_LAYOUT.decode(rec3.data);
+    // assert.ok(record3.text == "           123");
+
+    await program.methods
+      .addRecord(diaryId, "dasdasdasdas", 0)
+      .accounts({
+        authority: payer.publicKey,
+        diaryAccount: diaryPda,
+        recordsAccount: recordAcc.publicKey,
+      })
+      .signers([payer, recordAcc])
+      .rpc({
+        skipPreflight: true,
+      });
 
     const rec = await provider.connection.getAccountInfo(recordAcc.publicKey);
     const record = RECORD_LAYOUT.decode(rec.data);
-    assert.ok(record.text == "dasdasdasdas");
+    assert.ok(record.text == "dasdasdasdas123");
+
+    await program.methods
+      .addRecord(diaryId, "123", 15)
+      .accounts({
+        authority: payer.publicKey,
+        diaryAccount: diaryPda,
+        recordsAccount: recordAcc.publicKey,
+      })
+      .signers([payer, recordAcc])
+      .rpc({
+        skipPreflight: true,
+      });
+
+    const rec2 = await provider.connection.getAccountInfo(recordAcc.publicKey);
+    const record2 = RECORD_LAYOUT.decode(rec2.data);
+    assert.ok(record2.text == "dasdasdasdas123123");
   });
   it("Remove record", async () => {
     const payer = await getPayer();
