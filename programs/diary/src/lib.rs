@@ -1,7 +1,7 @@
 use anchor_lang::prelude::borsh::{BorshDeserialize, BorshSerialize};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::pubkey::PUBKEY_BYTES;
-use solana_program::program_pack::{Pack, Sealed};
+use solana_program::program_pack::{IsInitialized, Pack, Sealed};
 
 declare_id!("bNFMSsTXGZxhAA7mUcdUid5Yir3zWJf1myfP4TSQ46x");
 
@@ -140,6 +140,12 @@ pub struct Record {
 }
 
 impl Sealed for Record {}
+
+impl IsInitialized for Record {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+}
 
 impl Pack for Record {
     const LEN: usize = RECORD_LEN;
