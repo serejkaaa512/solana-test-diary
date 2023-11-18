@@ -35,18 +35,22 @@ mod diary {
         ctx.accounts.diary_account.id = id;
         ctx.accounts.diary_account.name = name;
         ctx.accounts.diary_account.bump = *ctx.bumps.get("diary_account").unwrap();
+
+        emit!(DiaryEvent::from(
+            ctx.accounts.diary_account.clone().into_inner()
+        ));
         Ok(())
     }
     pub fn add_record(ctx: Context<AddRecord>, _id: u32, text: String, offset: u32) -> Result<()> {
         let offset = offset as usize;
         let new_bytes_len_from_offset = offset + text.len();
-        if ctx
+        let record_data = if ctx
             .accounts
             .diary_account
             .records
             .contains(&ctx.accounts.records_account.key())
         {
-            let mut record_data =
+            let record_data =
                 Record::unpack_from_slice(&*ctx.accounts.records_account.data.borrow())
                     .expect("deposit token unpack");
             let mut bytes = record_data.text.into_bytes();
@@ -60,14 +64,9 @@ mod diary {
                 bytes
             };
 
-            record_data = Record {
+            Record {
                 text: String::from_utf8(new_bytes).unwrap(),
-            };
-
-            Record::pack(
-                record_data,
-                &mut ctx.accounts.records_account.data.borrow_mut(),
-            )?;
+            }
         } else {
             ctx.accounts
                 .diary_account
@@ -77,15 +76,17 @@ mod diary {
             let mut new_bytes = vec![0; new_bytes_len_from_offset];
             new_bytes[offset..].copy_from_slice(&text.as_bytes());
 
-            let record_account_data = Record {
+            Record {
                 text: String::from_utf8(new_bytes).unwrap(),
-            };
+            }
+        };
 
-            Record::pack(
-                record_account_data,
-                &mut ctx.accounts.records_account.data.borrow_mut(),
-            )?;
-        }
+        emit!(RecordEvent::from(record_data.clone()));
+
+        Record::pack(
+            record_data,
+            &mut ctx.accounts.records_account.data.borrow_mut(),
+        )?;
         Ok(())
     }
 
@@ -122,6 +123,25 @@ pub struct Diary {
     pub bump: u8,
 }
 
+#[event]
+pub struct DiaryEvent {
+    pub id: u32,
+    pub name: String,
+    pub records: Vec<Pubkey>,
+    pub bump: u8,
+}
+
+impl From<Diary> for DiaryEvent {
+    fn from(value: Diary) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            records: value.records,
+            bump: value.bump,
+        }
+    }
+}
+
 #[derive(Accounts)]
 #[instruction(id: u32)]
 pub struct CreateDiary<'info> {
@@ -134,9 +154,20 @@ pub struct CreateDiary<'info> {
     pub system_program: Program<'info, System>,
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct Record {
     pub text: String,
+}
+
+#[event]
+pub struct RecordEvent {
+    pub text: String,
+}
+
+impl From<Record> for RecordEvent {
+    fn from(value: Record) -> Self {
+        Self { text: value.text }
+    }
 }
 
 impl Sealed for Record {}
